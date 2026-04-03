@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:uuid/uuid.dart';
 import '../config/app_config.dart';
 import 'embeddings_service.dart';
 
