@@ -3,10 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../agents/research_agent.dart';
 import '../models/research_task.dart';
+import 'storage_service.dart';
+
+// 스토리지 서비스 Provider
+final storageServiceProvider = Provider<StorageService>((ref) {
+  throw UnimplementedError('storageServiceProvider must be overridden');
+});
 
 // 연구 에이전트 Provider
 final researchAgentProvider = Provider<ResearchAgent>((ref) {
-  final agent = ResearchAgent.create();
+  final storage = ref.read(storageServiceProvider);
+  final agent = ResearchAgent.create(
+    openAiApiKey: storage.getSetting('openai_api_key'),
+    tavilyApiKey: storage.getSetting('tavily_api_key'),
+    qdrantUrl: storage.getSetting('qdrant_url'),
+  );
   ref.onDispose(() => agent.dispose());
   return agent;
 });
@@ -18,7 +29,7 @@ final currentTaskProvider = StateNotifierProvider<ResearchTaskNotifier, Research
 
 // 연구 이력
 final researchHistoryProvider = StateNotifierProvider<ResearchHistoryNotifier, List<ResearchTask>>(
-  (ref) => ResearchHistoryNotifier(),
+  (ref) => ResearchHistoryNotifier(ref.read(storageServiceProvider)),
 );
 
 // 테마 모드
@@ -75,17 +86,25 @@ class ResearchTaskNotifier extends StateNotifier<ResearchTask?> {
 }
 
 class ResearchHistoryNotifier extends StateNotifier<List<ResearchTask>> {
-  ResearchHistoryNotifier() : super([]);
+  final StorageService _storage;
+
+  ResearchHistoryNotifier(this._storage) : super([]) {
+    // 로컬 저장소에서 이력 로드
+    state = _storage.loadHistory();
+  }
 
   void add(ResearchTask task) {
     state = [task, ...state];
+    _storage.saveHistory(state);
   }
 
   void remove(String id) {
     state = state.where((t) => t.id != id).toList();
+    _storage.saveHistory(state);
   }
 
   void clear() {
     state = [];
+    _storage.clearHistory();
   }
 }
