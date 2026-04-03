@@ -158,12 +158,6 @@ The project follows a clean, modular architecture decoupled from the UI:
 
 ## 📄 License
 MIT License - Copyright (c) 2026
-
----
-
-## 👥 Contributors
-- **kimdzhekhon** (Main Developer)
-
 ---
 
 > Created with passion for AI Research & Architecture.
