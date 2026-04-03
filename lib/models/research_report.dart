@@ -31,7 +31,7 @@ class ResearchReport {
       buf.writeln('${i + 1}. [${sources[i].title}](${sources[i].url})');
       buf.writeln('   - ${sources[i].snippet}\n');
     }
-    buf.writeln('\n_Generated at: $generatedAt_');
+    buf.writeln('\n_Generated at: ${generatedAt}_');
     return buf.toString();
   }
 }

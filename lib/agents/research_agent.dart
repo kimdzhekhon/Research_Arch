@@ -7,6 +7,7 @@ import '../tools/pdf_parser_tool.dart';
 import '../tools/calculator_tool.dart';
 import '../rag/vector_store.dart';
 import '../rag/embeddings_service.dart';
+import '../rag/text_chunker.dart';
 import 'react_loop.dart';
 
 /// 자율적 연구 에이전트 - 전체 파이프라인 관리
@@ -39,6 +40,8 @@ class ResearchAgent {
       pdfParser: _pdfParser,
       calculator: _calculator,
       vectorStore: _vectorStore,
+      chunker: const TextChunker(chunkSize: 500, chunkOverlap: 50),
+      maxSteps: 15,
     );
   }
 
@@ -87,22 +90,23 @@ class ResearchAgent {
     await for (final step in _reactLoop.execute(topic)) {
       allSteps.add(step);
 
-      // 상태 업데이트
+      // 상태 업데이트 - 액션 수 기반 진행률 계산
+      final actionSteps = allSteps.where((s) => s.type == 'action').length;
       TaskStatus newStatus;
       double progress;
 
       switch (step.type) {
         case 'thought':
           newStatus = TaskStatus.planning;
-          progress = (allSteps.length / 20).clamp(0.0, 0.4);
+          progress = (actionSteps / 15 * 0.8).clamp(0.05, 0.4);
         case 'action':
           newStatus = step.toolName == 'web_search'
               ? TaskStatus.searching
               : TaskStatus.analyzing;
-          progress = (allSteps.length / 20).clamp(0.1, 0.7);
+          progress = (actionSteps / 15 * 0.8).clamp(0.1, 0.75);
         case 'observation':
           newStatus = TaskStatus.analyzing;
-          progress = (allSteps.length / 20).clamp(0.2, 0.8);
+          progress = (actionSteps / 15 * 0.8 + 0.05).clamp(0.15, 0.8);
         case 'report':
           newStatus = TaskStatus.writing;
           progress = 0.9;

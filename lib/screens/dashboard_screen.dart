@@ -5,6 +5,7 @@ import '../services/research_provider.dart';
 import '../widgets/research_input.dart';
 import '../widgets/progress_timeline.dart';
 import '../widgets/report_viewer.dart';
+import '../widgets/stats_panel.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -13,6 +14,7 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final task = ref.watch(currentTaskProvider);
     final theme = Theme.of(context);
+    final themeMode = ref.watch(themeModeProvider);
     final isRunning = task != null &&
         task.status != TaskStatus.idle &&
         task.status != TaskStatus.completed &&
@@ -42,6 +44,25 @@ class DashboardScreen extends ConsumerWidget {
                   icon: const Icon(Icons.stop_circle),
                   label: const Text('중단'),
                 ),
+              // 테마 토글
+              IconButton(
+                icon: Icon(
+                  themeMode == ThemeMode.dark
+                      ? Icons.light_mode
+                      : themeMode == ThemeMode.light
+                          ? Icons.dark_mode
+                          : Icons.brightness_auto,
+                ),
+                tooltip: '테마 변경',
+                onPressed: () {
+                  final next = switch (themeMode) {
+                    ThemeMode.system => ThemeMode.light,
+                    ThemeMode.light => ThemeMode.dark,
+                    ThemeMode.dark => ThemeMode.system,
+                  };
+                  ref.read(themeModeProvider.notifier).state = next;
+                },
+              ),
               IconButton(
                 icon: const Icon(Icons.history),
                 tooltip: '연구 이력',
@@ -71,6 +92,12 @@ class DashboardScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
                 ],
 
+                // 연구 통계 패널
+                if (task != null && task.steps.length >= 2) ...[
+                  StatsPanel(task: task),
+                  const SizedBox(height: 16),
+                ],
+
                 // 진행 상황 타임라인
                 if (task != null && task.steps.isNotEmpty) ...[
                   ProgressTimeline(task: task),
@@ -85,7 +112,7 @@ class DashboardScreen extends ConsumerWidget {
 
                 // 빈 상태
                 if (task == null)
-                  _EmptyState(),
+                  const _EmptyState(),
               ]),
             ),
           ),
@@ -98,38 +125,105 @@ class DashboardScreen extends ConsumerWidget {
     final history = ref.read(researchHistoryProvider);
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '연구 이력',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (history.isEmpty)
-              const Center(child: Text('아직 완료된 연구가 없습니다'))
-            else
-              Expanded(
-                child: ListView.builder(
-                  itemCount: history.length,
-                  itemBuilder: (context, index) {
-                    final item = history[index];
-                    return ListTile(
-                      leading: const Icon(Icons.article),
-                      title: Text(item.topic),
-                      subtitle: Text(
-                        '${item.createdAt.toString().substring(0, 16)} | '
-                        '${item.steps.length} 단계',
-                      ),
-                    );
-                  },
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.5,
+        maxChildSize: 0.85,
+        builder: (context, scrollController) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-          ],
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Text(
+                    '연구 이력',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (history.isNotEmpty)
+                    TextButton(
+                      onPressed: () {
+                        ref.read(researchHistoryProvider.notifier).clear();
+                        Navigator.pop(context);
+                      },
+                      child: const Text('전체 삭제'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (history.isEmpty)
+                const Expanded(
+                  child: Center(child: Text('아직 완료된 연구가 없습니다')),
+                )
+              else
+                Expanded(
+                  child: ListView.separated(
+                    controller: scrollController,
+                    itemCount: history.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final item = history[index];
+                      final stepCount = item.steps.length;
+                      final sourceCount = item.steps
+                          .where((s) => s.toolName == 'web_search')
+                          .length;
+                      return ListTile(
+                        leading: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .primaryContainer,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.article,
+                            size: 20,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onPrimaryContainer,
+                          ),
+                        ),
+                        title: Text(
+                          item.topic,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          '${item.createdAt.toString().substring(0, 16)} | '
+                          '$stepCount단계 | $sourceCount개 출처',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.chevron_right, size: 20),
+                        onTap: () {
+                          ref.read(currentTaskProvider.notifier).loadTask(item);
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -142,19 +236,26 @@ class _ErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
+        color: isDark ? Colors.red.shade900.withValues(alpha: 0.3) : Colors.red.shade50,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade200),
+        border: Border.all(
+          color: isDark ? Colors.red.shade700 : Colors.red.shade200,
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline, color: Colors.red.shade700),
+          Icon(Icons.error_outline, color: isDark ? Colors.red.shade300 : Colors.red.shade700),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(message, style: TextStyle(color: Colors.red.shade700)),
+            child: Text(
+              message,
+              style: TextStyle(color: isDark ? Colors.red.shade300 : Colors.red.shade700),
+            ),
           ),
         ],
       ),
@@ -163,6 +264,8 @@ class _ErrorCard extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -195,11 +298,14 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 24),
             Wrap(
               spacing: 8,
-              children: [
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: const [
                 _FeatureChip(icon: Icons.search, label: '웹 검색 (Tavily)'),
                 _FeatureChip(icon: Icons.picture_as_pdf, label: 'PDF 분석'),
                 _FeatureChip(icon: Icons.calculate, label: '계산기'),
                 _FeatureChip(icon: Icons.storage, label: 'RAG (Qdrant)'),
+                _FeatureChip(icon: Icons.auto_awesome, label: 'ReAct Agent'),
               ],
             ),
           ],
