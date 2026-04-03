@@ -14,225 +14,96 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final task = ref.watch(currentTaskProvider);
     final theme = Theme.of(context);
-    final themeMode = ref.watch(themeModeProvider);
     final isRunning = task != null &&
         task.status != TaskStatus.idle &&
         task.status != TaskStatus.completed &&
         task.status != TaskStatus.error;
 
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          // App Bar
-          SliverAppBar(
-            floating: true,
-            expandedHeight: 120,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                'ResearchArch',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onSurface,
-                ),
+    return CustomScrollView(
+      slivers: [
+        // App Bar
+        SliverAppBar(
+          floating: true,
+          expandedHeight: 120,
+          flexibleSpace: FlexibleSpaceBar(
+            title: Text(
+              'ResearchArch',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
               ),
-              titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
             ),
-            actions: [
-              if (isRunning)
-                TextButton.icon(
-                  onPressed: () => ref.read(currentTaskProvider.notifier).cancel(),
-                  icon: const Icon(Icons.stop_circle),
-                  label: const Text('중단'),
-                ),
-              // 테마 토글
-              IconButton(
-                icon: Icon(
-                  themeMode == ThemeMode.dark
-                      ? Icons.light_mode
-                      : themeMode == ThemeMode.light
-                          ? Icons.dark_mode
-                          : Icons.brightness_auto,
-                ),
-                tooltip: '테마 변경',
-                onPressed: () {
-                  final next = switch (themeMode) {
-                    ThemeMode.system => ThemeMode.light,
-                    ThemeMode.light => ThemeMode.dark,
-                    ThemeMode.dark => ThemeMode.system,
-                  };
-                  ref.read(themeModeProvider.notifier).state = next;
+            titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
+          ),
+          actions: [
+            if (isRunning)
+              TextButton.icon(
+                onPressed: () => ref.read(currentTaskProvider.notifier).cancel(),
+                icon: const Icon(Icons.stop_circle),
+                label: const Text('중단'),
+              ),
+            const SizedBox(width: 8),
+          ],
+        ),
+
+        // Body
+        SliverPadding(
+          padding: const EdgeInsets.all(20),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              // 입력 카드
+              ResearchInput(
+                isLoading: isRunning,
+                onSubmit: (topic) {
+                  ref.read(currentTaskProvider.notifier).startResearch(topic);
                 },
               ),
-              IconButton(
-                icon: const Icon(Icons.history),
-                tooltip: '연구 이력',
-                onPressed: () => _showHistory(context, ref),
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
+              const SizedBox(height: 24),
 
-          // Body
-          SliverPadding(
-            padding: const EdgeInsets.all(20),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                // 입력 카드
-                ResearchInput(
-                  isLoading: isRunning,
-                  onSubmit: (topic) {
-                    ref.read(currentTaskProvider.notifier).startResearch(topic);
+              // 에러 표시 + 재시도
+              if (task?.status == TaskStatus.error) ...[
+                _ErrorCard(
+                  message: task!.errorMessage ?? '알 수 없는 오류',
+                  onRetry: () {
+                    ref.read(currentTaskProvider.notifier).startResearch(task.topic);
                   },
                 ),
                 const SizedBox(height: 24),
+              ],
 
-                // 에러 표시
-                if (task?.status == TaskStatus.error) ...[
-                  _ErrorCard(message: task!.errorMessage ?? '알 수 없는 오류'),
-                  const SizedBox(height: 24),
-                ],
+              // 연구 통계 패널
+              if (task != null && task.steps.length >= 2) ...[
+                StatsPanel(task: task),
+                const SizedBox(height: 16),
+              ],
 
-                // 연구 통계 패널
-                if (task != null && task.steps.length >= 2) ...[
-                  StatsPanel(task: task),
-                  const SizedBox(height: 16),
-                ],
+              // 진행 상황 타임라인
+              if (task != null && task.steps.isNotEmpty) ...[
+                ProgressTimeline(task: task),
+                const SizedBox(height: 24),
+              ],
 
-                // 진행 상황 타임라인
-                if (task != null && task.steps.isNotEmpty) ...[
-                  ProgressTimeline(task: task),
-                  const SizedBox(height: 24),
-                ],
+              // 보고서 뷰어
+              if (task?.report != null) ...[
+                ReportViewer(markdown: task!.report!),
+                const SizedBox(height: 24),
+              ],
 
-                // 보고서 뷰어
-                if (task?.report != null) ...[
-                  ReportViewer(markdown: task!.report!),
-                  const SizedBox(height: 24),
-                ],
-
-                // 빈 상태
-                if (task == null)
-                  const _EmptyState(),
-              ]),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showHistory(BuildContext context, WidgetRef ref) {
-    final history = ref.read(researchHistoryProvider);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.5,
-        maxChildSize: 0.85,
-        builder: (context, scrollController) => Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Text(
-                    '연구 이력',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (history.isNotEmpty)
-                    TextButton(
-                      onPressed: () {
-                        ref.read(researchHistoryProvider.notifier).clear();
-                        Navigator.pop(context);
-                      },
-                      child: const Text('전체 삭제'),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (history.isEmpty)
-                const Expanded(
-                  child: Center(child: Text('아직 완료된 연구가 없습니다')),
-                )
-              else
-                Expanded(
-                  child: ListView.separated(
-                    controller: scrollController,
-                    itemCount: history.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final item = history[index];
-                      final stepCount = item.steps.length;
-                      final sourceCount = item.steps
-                          .where((s) => s.toolName == 'web_search')
-                          .length;
-                      return ListTile(
-                        leading: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .primaryContainer,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            Icons.article,
-                            size: 20,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onPrimaryContainer,
-                          ),
-                        ),
-                        title: Text(
-                          item.topic,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          '${item.createdAt.toString().substring(0, 16)} | '
-                          '$stepCount단계 | $sourceCount개 출처',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        trailing: const Icon(Icons.chevron_right, size: 20),
-                        onTap: () {
-                          ref.read(currentTaskProvider.notifier).loadTask(item);
-                          Navigator.pop(context);
-                        },
-                      );
-                    },
-                  ),
-                ),
-            ],
+              // 빈 상태
+              if (task == null) const _EmptyState(),
+            ]),
           ),
         ),
-      ),
+      ],
     );
   }
 }
 
 class _ErrorCard extends StatelessWidget {
   final String message;
-  const _ErrorCard({required this.message});
+  final VoidCallback onRetry;
+
+  const _ErrorCard({required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -247,14 +118,36 @@ class _ErrorCard extends StatelessWidget {
           color: isDark ? Colors.red.shade700 : Colors.red.shade200,
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline, color: isDark ? Colors.red.shade300 : Colors.red.shade700),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(color: isDark ? Colors.red.shade300 : Colors.red.shade700),
+          Row(
+            children: [
+              Icon(Icons.error_outline,
+                  color: isDark ? Colors.red.shade300 : Colors.red.shade700),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                      color: isDark ? Colors.red.shade300 : Colors.red.shade700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('다시 시도'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: isDark ? Colors.red.shade300 : Colors.red.shade700,
+                side: BorderSide(
+                  color: isDark ? Colors.red.shade700 : Colors.red.shade300,
+                ),
+              ),
             ),
           ),
         ],
@@ -274,10 +167,19 @@ class _EmptyState extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 60),
         child: Column(
           children: [
-            Icon(
-              Icons.biotech,
-              size: 80,
-              color: theme.colorScheme.primary.withValues(alpha: 0.3),
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 800),
+              curve: Curves.elasticOut,
+              builder: (context, value, child) => Transform.scale(
+                scale: value,
+                child: child,
+              ),
+              child: Icon(
+                Icons.biotech,
+                size: 80,
+                color: theme.colorScheme.primary.withValues(alpha: 0.3),
+              ),
             ),
             const SizedBox(height: 20),
             Text(

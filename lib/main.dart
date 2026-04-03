@@ -1,10 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'screens/dashboard_screen.dart';
+import 'screens/home_screen.dart';
 import 'services/research_provider.dart';
+import 'services/storage_service.dart';
 
-void main() {
-  runApp(const ProviderScope(child: ResearchArchApp()));
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final storage = await StorageService.create();
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        storageServiceProvider.overrideWithValue(storage),
+      ],
+      child: const ResearchArchApp(),
+    ),
+  );
 }
 
 class ResearchArchApp extends ConsumerWidget {
@@ -32,7 +43,7 @@ class ResearchArchApp extends ConsumerWidget {
         useMaterial3: true,
       ),
       themeMode: themeMode,
-      home: const DashboardScreen(),
+      home: const HomeScreen(),
     );
   }
 }
