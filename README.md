@@ -31,11 +31,6 @@
 |:---:|:---:|:---:|
 | <img src="assets/screenshots/research.png" width="250"> | <img src="assets/screenshots/history.png" width="250"> | <img src="assets/screenshots/settings.png" width="250"> |
 
-> [!NOTE]
-> `assets/screenshots/` 폴더에 스크린샷 파일을 저장하여 README를 완성해 주세요.
-
----
-
 ## 핵심 기능 (Key Features)
 
 - 🔍 **고급 웹 검색 (Tavily)**: 수천 개의 웹 페이지 중 가장 신뢰도 높은 연구 정보를 우선 추출합니다.
